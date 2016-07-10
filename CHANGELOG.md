@@ -1,5 +1,171 @@
 # Changelog
 
+## 0.14.4 (2016-07-01)
+
+**CLI:**
+
+- add hard dependency to dry-types gem (#826, #824)
+
+**Other:**
+
+- remove image before tagging, because --force is deprecated (#833)
+
+## 0.14.3 (2016-06-16)
+
+**Master & Agent:**
+- update excon to 0.49.0 (#806)
+- enable eventmachine epoll (#804)
+
+**CLI:**
+- fix aws public ip assign (#808)
+
+## 0.14.2 (2016-06-06)
+
+**Master & Agent:**
+- do not allow ImageCleanupWorker to remove agent images (#791)
+
+**CLI:**
+- add s3-v4auth flag for registry create (#789)
+- improve vpn creation for non-public environments (#787)
+- generate yaml v2 formatted files on app init command (#785)
+
+## 0.14.1 (2016-06-03)
+
+**Master & Agent:**
+- fix automatic scale down on too many service instances (#772)
+- fix nil on cpu usage and refactor stats worker (#769)
+
+**CLI:**
+- allow to use app name defined in yaml on app config command (#779)
+- fix kontena app build command error (#777)
+- enable security group setting for master and nodes in AWS (#775)
+- verify Upcloud API access (#774)
+- provider labels for AWS, Azure and DO nodes (#773)
+- add option in AWS to associate public ip for VPC (#771)
+- fix log_opts disappearing after service update (#770)
+
+## 0.14.0 (2016-05-31)
+
+**Master & Agent:**
+- dynamic etcd cluster member replacement functionality (#719)
+- take availability zones into account in ha scheduling strategy (#754)
+- notify grid nodes when node information is updated in master (#752)
+- allow to set agent public/private ip via env (#697)
+- add rollbar support to master (#475)
+
+**CLI:**
+- support for Docker Compose YAML V2 format (#739)
+- upcloud.com provisioning support (#748)
+- packet.net provisioning support (#726)
+- improve azure provisioning (#763)
+- confirm dialog on destructive commands (#712)
+- allow to define app name in kontena.yml (#751)
+- new sub-command `app config` (#749)
+- show agent version in node details (#736)
+- use region as az in DigitalOcean (#734)
+- show initial node membership info (#733)
+- option for upserting secrets (#711)
+- improved kontena.yml parsing (#696)
+
+## 0.13.4 (2016-05-29)
+
+**Master & Agent:**
+- allow to deploy service that is already in deploying state (#743)
+
+**Packaging:**
+- add resolvconf as dependency in ubuntu kontena-agent (#744)
+
+## 0.13.3 (2016-05-27)
+
+**Master & Agent:**
+- fix possible agent websocket ping_timer race condition (#731)
+- fix upstream removal to remove only right container instance (#727)
+- fix service balancer not picking up instances without any deploys (#725)
+- fix stopped services with open deploys blocking deploy queue (#724)
+
+## 0.13.2 (2016-05-24)
+
+**Master & Agent**
+- fix how daemon service state is calculated (#716)
+- fix error in HostNode#region when labels is nil (#714)
+- fix daemon scheduler node sorting (#708)
+- fix how service instance running count is checked (#707)
+- take region into account when resolving peer ip's (#706)
+
+**CLI**
+- fix service name displaying on app deploy (#717)
+- fix confusing user invite text (#715)
+- show debug help only for non Kontena StandardErrors (#710)
+
+
+## 0.13.1 (2016-05-19)
+
+- fix agent websocket hang on close when connection is unstable (#698)
+
+## 0.13.0 (2016-05-18)
+
+**Master & Agent**
+- grid trusted subnets (weave fast data path) (#644)
+- scheduler memory filter (#606)
+- new deploy option: interval (#657)
+- cadvisor 0.23.0 (#668)
+- add support for `KONTENA_LB_KEEP_VIRTUAL_PATH` (#687)
+- improve deploy queue performance (#690)
+- schedule deploy for related services on vault secret update (#661)
+- do not overwrite service env variables if value is empty (#620)
+- return 404 error when (un)assigning nonexisting user to a grid (#665)
+- remove container_logs full-text indexing (#677)
+- strip secrets from container env variables (#679)
+- schedule deploy if service instance has missing overlay_cidr (#685)
+- remove invalid signal trap (#689)
+
+**CLI**
+- pre-build hooks (#588)
+- unify cli subcommands (#648)
+- improved memory parsing (#681)
+- add `--mongodb-uri` option to aws master create command (#676)
+- add `--mongodb-uri` option to digitalocean master create command (#675)
+- generate self-signed cert for digitalocean master if no cert is provided (#672)
+- point user account requests directly to auth provider (#671)
+- fix linked service deletion on `app rm` command (#653)
+- fix memory parsing errors (#647)
+- sort node list by node number (#646)
+- sort service list by updated at (#645)
+- remove digitalocean floating ip workaround (#643)
+- sort vault secrets & envs by name (#641)
+- enable digitalocean & azure master update strategy (#640)
+- disable vagrant node update stragegy (#639)
+- load aws coreos amis dynamically from json feed (#638)
+- tell how to get the full exception when an error occurs (#635)
+- merge secrets when extending services (#621)
+- new command `master current` (#613)
+- show node stats on node details (#607)
+- save login email to local config (#589)
+
+## 0.12.3 (2016-05-06)
+
+- fix node unplugger unclean shutdown (#662)
+
+## 0.12.2 (2016-04-26)
+
+- fix too aggressive overlay cidr cleanup (#626)
+- fix image puller cache invalidation on new deploy using same image tag (#627)
+- do not ignore containers with name containing weave (#631)
+- return nil for current_grid if master settings not present in cli (#632)
+
+## 0.12.1 (2016-04-19)
+
+- use overlay ip when checking port status on deploy
+- allow to use docker 1.10.x on ubuntu
+- allow master_admin role to see all grids
+- add missing `master users rm` command
+- switch aws provisioning commands to use official aws-sdk
+- fix authorize on grid actions
+- fix node memory calculation (take buffers & caches into account)
+- fix `vault list` command output width cropping
+- fix typo in `grid list` command when no grids exist
+- fix `service containers` exception on nil overlay_cidr
+
 ## 0.12.0 (2016-04-04)
 
 - improve user roles implementation

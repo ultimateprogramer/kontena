@@ -23,6 +23,7 @@ class HostNode
   field :public_ip, type: String
   field :private_ip, type: String
   field :last_seen_at, type: Time
+  field :agent_version, type: String
 
   attr_accessor :schedule_counter
 
@@ -60,7 +61,8 @@ class HostNode
       cpus: attrs['NCPU'],
       swap_limit: attrs['SwapLimit'],
       public_ip: attrs['PublicIp'],
-      private_ip: attrs['PrivateIp']
+      private_ip: attrs['PrivateIp'],
+      agent_version: attrs['AgentVersion']
     }
     if self.name.nil?
       self.name = attrs['Name']
@@ -90,6 +92,37 @@ class HostNode
   # @return [Integer]
   def schedule_counter
     @schedule_counter ||= 0
+  end
+
+  # @return [String]
+  def region
+    if @region.nil?
+      @region = 'default'.freeze
+      self.labels.to_a.each do |label|
+        if match = label.match(/^region=(.+)/)
+          @region = match[1]
+        end
+      end
+    end
+    @region
+  end
+
+  def initial_member?
+    return true if self.node_number <= self.grid.initial_size
+    false
+  end
+
+  # @return [String]
+  def availability_zone
+    if @availability_zone.nil?
+      @availability_zone = 'default'.freeze
+      self.labels.to_a.each do |label|
+        if match = label.match(/^az=(.+)/)
+          @availability_zone = match[1]
+        end
+      end
+    end
+    @availability_zone
   end
 
   private

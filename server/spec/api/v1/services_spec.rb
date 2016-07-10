@@ -61,7 +61,7 @@ describe '/v1/services' do
         id created_at updated_at image affinity name stateful user
         container_count cmd entrypoint ports env memory memory_swap cpu_shares
         volumes volumes_from cap_add cap_drop state grid_id links log_driver log_opts
-        strategy deploy_opts pid instances net hooks secrets
+        strategy deploy_opts pid instances net hooks secrets revision
       ).sort)
       expect(json_response['id']).to eq(redis_service.to_path)
       expect(json_response['image']).to eq(redis_service.image_name)
@@ -71,6 +71,16 @@ describe '/v1/services' do
       request_headers.delete('HTTP_AUTHORIZATION')
       get "/v1/services/#{redis_service.to_path}", nil, request_headers
       expect(response.status).to eq(403)
+    end
+
+    it 'returns health status' do
+      redis_service.health_check = GridServiceHealthCheck.new(port: 5000)
+      redis_service.save
+      container = redis_service.containers.create!(name: 'redis-1', container_id: 'aaa', health_status: 'healthy')
+      get "/v1/services/#{redis_service.to_path}", nil, request_headers
+      expect(response.status).to eq(200)
+      expect(json_response['health_status']['total']).to eq(1)
+      expect(json_response['health_status']['healthy']).to eq(1)
     end
   end
 
@@ -192,23 +202,18 @@ describe '/v1/services' do
   end
 
   describe 'POST /:id/deploy' do
-    let(:worker) { spy(:worker) }
-    before(:each) do
-      allow(Celluloid::Actor).to receive(:[]).with(:grid_service_scheduler_worker).and_return(worker)
-    end
     it 'deploys service' do
-      spy = spy(:executor)
-      expect(worker).to receive(:async).once.and_return(spy)
-      expect(spy).to receive(:perform).with(redis_service.id)
-      post "/v1/services/#{redis_service.to_path}/deploy", nil, request_headers
-      expect(response.status).to eq(200)
+      expect {
+        post "/v1/services/#{redis_service.to_path}/deploy", nil, request_headers
+        expect(response.status).to eq(200)
+      }.to change{ redis_service.grid_service_deploys.count }.by(1)
     end
 
     it 'changes state to deploy_pending' do
       expect {
         post "/v1/services/#{redis_service.to_path}/deploy", nil, request_headers
         expect(response.status).to eq(200)
-      }.to change{ redis_service.reload.state }.to('deploy_pending')
+      }.to change{ redis_service.reload.deploy_pending? }.from(false).to(true)
     end
 
     it 'does not change updated_at by default' do

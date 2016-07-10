@@ -12,12 +12,14 @@ module Kontena::Cli::Apps
     option ['--no-cache'], :flag, 'Do not use cache when building the image', default: false
     parameter "[SERVICE] ...", "Services to build"
 
-    attr_reader :services, :service_prefix
+    attr_reader :services
 
     def execute
       require_config_file(filename)
-      @service_prefix = project_name || current_dir
-      @services = load_services(filename, service_list, service_prefix)
+      @services = services_from_yaml(filename, service_list, service_prefix)
+      if services.none?{ |name, service| service['build'] }
+        abort 'Not found any service with build option'.colorize(:red)
+      end
       process_docker_images(services, true, no_cache?)
     end
   end

@@ -62,8 +62,9 @@ module GridServices
       end
       hash :deploy_opts do
         optional do
-          integer :wait_for_port
+          integer :wait_for_port, nils: true
           float :min_health
+          integer :interval, nils: true
         end
       end
       string :pid, matches: /^(host)$/
@@ -89,6 +90,18 @@ module GridServices
           end
         end
       end
+      hash :health_check do
+        required do
+          integer :port
+          string :protocol, matches: /^(http|tcp)$/
+        end
+        optional do
+          string :uri
+          integer :timeout, default: 10
+          integer :interval, default: 60
+          integer :initial_delay, default: 10
+        end
+      end
     end
 
     def validate
@@ -102,6 +115,9 @@ module GridServices
 
       if self.strategy && !self.strategies[self.strategy]
         add_error(:strategy, :invalid_strategy, 'Strategy not supported')
+      end
+      if self.health_check && self.health_check[:interval] < self.health_check[:timeout]
+        add_error(:health_check, :invalid, 'Interval has to be bigger than timeout')
       end
     end
 
@@ -118,7 +134,7 @@ module GridServices
       attributes[:cap_add] = self.cap_add if self.cap_add
       attributes[:cap_drop] = self.cap_drop if self.cap_drop
       attributes[:cmd] = self.cmd if self.cmd
-      attributes[:env] = self.env if self.env
+      attributes[:env] = self.build_grid_service_envs(self.env) if self.env
       attributes[:net] = self.net if self.net
       attributes[:ports] = self.ports if self.ports
       attributes[:affinity] = self.affinity if self.affinity
@@ -140,9 +156,26 @@ module GridServices
       end
 
       grid_service.attributes = attributes
+      if grid_service.changed?
+        grid_service.revision += 1
+      end
       grid_service.save
 
       grid_service
+    end
+
+    # @param [Array<String>] envs
+    # @return [Array<String>]
+    def build_grid_service_envs(env)
+      new_env = GridService.new(env: env).env_hash
+      current_env = self.grid_service.env_hash
+      new_env.each do |k, v|
+        if v.empty? && current_env[k]
+          new_env[k] = current_env[k]
+        end
+      end
+
+      new_env.map{|k, v| "#{k}=#{v}"}
     end
 
     def strategies

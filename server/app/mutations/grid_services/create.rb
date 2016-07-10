@@ -13,6 +13,7 @@ module GridServices
     end
 
     optional do
+      model :stack, class: Stack
       string :strategy
       integer :container_count
       string :user
@@ -72,6 +73,7 @@ module GridServices
         optional do
           integer :wait_for_port
           float :min_health
+          integer :interval
         end
       end
       string :pid, matches: /^(host)$/
@@ -97,6 +99,18 @@ module GridServices
           end
         end
       end
+      hash :health_check do
+        required do
+          integer :port
+          string :protocol, matches: /^(http|tcp)$/
+        end
+        optional do
+          string :uri
+          integer :timeout, default: 10
+          integer :interval, default: 60
+          integer :initial_delay, default: 10
+        end
+      end
     end
 
     def validate
@@ -112,6 +126,9 @@ module GridServices
       end
       if self.strategy && !self.strategies[self.strategy]
         add_error(:strategy, :invalid_strategy, 'Strategy not supported')
+      end
+      if self.health_check && self.health_check[:interval] < self.health_check[:timeout]
+        add_error(:health_check, :invalid, 'Interval has to be bigger than timeout')
       end
     end
 

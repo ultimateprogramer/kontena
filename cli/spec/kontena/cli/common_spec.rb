@@ -2,11 +2,6 @@ require_relative "../../spec_helper"
 require "kontena/cli/common"
 
 describe Kontena::Cli::Common do
-
-  let(:masters) do
-
-  end
-
   let(:subject) do
     Class.new do
       include Kontena::Cli::Common
@@ -46,6 +41,10 @@ describe Kontena::Cli::Common do
       expect(subject.current_grid).to eq('foo_grid')
     end
 
+    it 'returns nil if settings are not present' do
+      allow(subject).to receive(:current_master).and_raise(ArgumentError)
+      expect(subject.current_grid).to be_nil
+    end
   end
 
   describe '#api_url' do
@@ -85,7 +84,6 @@ describe Kontena::Cli::Common do
 
       expect(subject.current_master['url']).to eq('someurl')
       expect(subject.current_master['name']).to eq('alias')
-
     end
   end
 
@@ -117,5 +115,44 @@ describe Kontena::Cli::Common do
       subject.settings
     end
 
+  end
+
+  describe '#error' do
+    it 'prints error message to stderr if given and raise error' do
+      expect($stderr).to receive(:puts).with('error message!')
+      expect{subject.error('error message!')}.to raise_error(SystemExit)
+    end
+  end
+
+  describe '#confirm_command' do
+    it 'returns true if input matches' do
+      allow(subject).to receive(:prompt).and_return('name-to-confirm')
+
+      expect(subject.confirm_command('name-to-confirm')).to be_truthy
+      expect{subject.confirm_command('name-to-confirm')}.to_not raise_error
+    end
+
+    it 'raises error unless input matches' do
+      expect(subject).to receive(:prompt).and_return('wrong-name')
+      expect(subject).to receive(:error).with(/did not match/)
+
+      subject.confirm_command('name-to-confirm')
+    end
+  end
+
+  describe '#confirm' do
+    it 'returns true if confirmed' do
+      allow(subject).to receive(:prompt).and_return('y')
+
+      expect(subject.confirm).to be_truthy
+      expect{subject.confirm}.to_not raise_error
+    end
+
+    it 'raises error unless confirmed' do
+      expect(subject).to receive(:prompt).and_return('ei')
+      expect(subject).to receive(:error).with(/Aborted/)
+
+      subject.confirm
+    end
   end
 end

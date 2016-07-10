@@ -5,6 +5,8 @@ module GridServices
     class ExecutionError < StandardError
     end
 
+    VALID_STATES = %w(initialized running deploying stopped)
+
     required do
       model :grid_service
     end
@@ -14,18 +16,20 @@ module GridServices
       boolean :force, default: false
     end
 
-    def execute
-      attrs = {
-        :deploy_requested_at => Time.now.utc,
-        :state => 'deploy_pending'
-      }
-      if self.force
-        attrs[:updated_at] = Time.now.utc
+    def validate
+      unless VALID_STATES.include?(grid_service.state)
+        add_error(:state, :invalid, "Cannot deploy because service state is #{grid_service.state}")
       end
-      self.grid_service.set(attrs)
-      worker(:grid_service_scheduler).async.perform(self.grid_service.id)
+    end
 
-      self.grid_service
+    def execute
+      attrs = { deploy_requested_at: Time.now.utc }
+      attrs[:state] = 'running' unless grid_service.deploying?
+      attrs[:updated_at] = Time.now.utc if force
+      grid_service.set(attrs)
+      GridServiceDeploy.create(grid_service: grid_service)
+
+      grid_service
     end
   end
 end

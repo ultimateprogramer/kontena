@@ -99,6 +99,12 @@ describe Kontena::Workers::NodeInfoWorker do
       info = subject.queue.pop
       expect(info[:data]['PrivateIp']).to eq('192.168.66.2')
     end
+
+    it 'contains agent_version' do
+      subject.publish_node_info
+      info = subject.queue.pop
+      expect(info[:data]['AgentVersion']).to match(/\d+\.\d+\.\d+/)
+    end
   end
 
   describe '#publish_node_stats' do
@@ -106,6 +112,30 @@ describe Kontena::Workers::NodeInfoWorker do
       expect {
         subject.publish_node_stats
       }.to change{ subject.queue.length }.by(1)
+    end
+  end
+
+
+  describe '#public_ip' do
+    it 'returns ip from env if set' do
+      allow(ENV).to receive(:[]).with('KONTENA_PUBLIC_IP').and_return('128.105.39.11')
+      expect(subject.public_ip).to eq('128.105.39.11')
+    end
+
+    it 'returns ip from akamai by default' do
+      expect(subject.public_ip).to eq('8.8.8.8')
+    end
+  end
+
+  describe '#private_ip' do
+    it 'returns ip from env if set' do
+      allow(ENV).to receive(:[]).with('KONTENA_PRIVATE_IP').and_return('192.168.2.10')
+      expect(subject.private_ip).to eq('192.168.2.10')
+    end
+
+    it 'returns ip from private interface by default' do
+      allow(subject.wrapped_object).to receive(:interface_ip).and_return('192.168.2.10')
+      expect(subject.private_ip).to eq('192.168.2.10')
     end
   end
 end

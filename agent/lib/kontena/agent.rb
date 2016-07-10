@@ -77,6 +77,11 @@ module Kontena
         type: Kontena::Workers::ImageCleanupWorker,
         as: :image_cleanup_worker
       )
+      @supervisor.supervise(
+        type: Kontena::Workers::HealthCheckWorker,
+        as: :health_check_worker,
+        args: [@queue]
+      )
     end
 
     def supervise_lb
@@ -91,6 +96,7 @@ module Kontena
     end
 
     def start_em
+      EM.epoll
       Thread.new { EventMachine.run } unless EventMachine.reactor_running?
       sleep 0.01 until EventMachine.reactor_running?
     end

@@ -13,6 +13,7 @@ describe GridService do
   it { should have_fields(:privileged).of_type(Mongoid::Boolean) }
 
   it { should belong_to(:grid) }
+  it { should belong_to(:stack) }
   it { should embed_many(:grid_service_links) }
   it { should embed_many(:secrets) }
   it { should embed_many(:hooks) }
@@ -21,6 +22,7 @@ describe GridService do
   it { should have_many(:container_logs) }
   it { should have_many(:container_stats) }
   it { should have_many(:audit_logs) }
+  it { should have_many(:grid_service_deploys) }
 
 
   it { should have_index_for(grid_id: 1) }
@@ -37,24 +39,35 @@ describe GridService do
   describe '#stateful?' do
     it 'returns true if stateful' do
       subject.stateful = true
-      expect(subject.stateful?).to eq(true)
+      expect(subject.stateful?).to be_truthy
     end
 
     it 'returns false if not stateful' do
       subject.stateful = false
-      expect(subject.stateful?).to eq(false)
+      expect(subject.stateful?).to be_falsey
     end
   end
 
   describe '#stateless?' do
     it 'returns true if stateless' do
       subject.stateful = false
-      expect(subject.stateless?).to eq(true)
+      expect(subject.stateless?).to be_truthy
     end
 
     it 'returns false if not stateless' do
       subject.stateful = true
-      expect(subject.stateless?).to eq(false)
+      expect(subject.stateless?).to be_falsey
+    end
+  end
+
+  describe '#daemon?' do
+    it 'returns true if strategy is daemon' do
+      subject.strategy = 'daemon'
+      expect(subject.daemon?).to be_truthy
+    end
+
+    it 'returns false if strategy is not daemon' do
+      expect(subject.daemon?).to be_falsey
     end
   end
 
@@ -67,34 +80,6 @@ describe GridService do
     it 'returns false if service is not running' do
       subject.state = 'stopped'
       expect(subject.running?).to eq(false)
-    end
-  end
-
-  describe '#all_instances_exist?' do
-    before(:each) do
-      subject.attributes = {name: 'test', image_name: 'foo/bar:latest'}
-      subject.container_count = 2
-      subject.save!
-    end
-
-    it 'returns true if all instances exist' do
-      2.times{|i| subject.containers.create!(name: "test-#{i}", state: {running: true}) }
-      expect(subject.all_instances_exist?).to eq(true)
-    end
-
-    it 'returns false if not all instances exist' do
-      subject.containers.create!(name: "test-1", state: {running: true})
-      subject.containers.create!(name: "test-2", state: {running: false})
-      expect(subject.all_instances_exist?).to eq(false)
-    end
-
-    it 'returns true if containers are marked as deleted' do
-      2.times{|i|
-        subject.containers.create!(
-          name: "test-#{i}", state: {running: true}, deleted_at: Time.now.utc
-          )
-      }
-      expect(subject.all_instances_exist?).to eq(true)
     end
   end
 
@@ -174,6 +159,21 @@ describe GridService do
 
     it 'returns false by default' do
       expect(subject.load_balancer?).to eq(false)
+    end
+  end
+
+  describe '#health_status' do
+    it 'returns health status' do
+      healthy_container = grid_service.containers.create!(name: 'redis-1')
+      healthy_container.update_attribute(:health_status, 'healthy')
+      unhealthy_container = grid_service.containers.create!(name: 'redis-2')
+      unhealthy_container.update_attribute(:health_status, 'unhealthy')
+
+      expect(grid_service.health_status).to eq({healthy: 1, total: 2})
+    end
+
+    it 'returns nil if container is not found' do
+      expect(grid_service.container_by_name('not_found')).to be_nil
     end
   end
 end

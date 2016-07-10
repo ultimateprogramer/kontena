@@ -85,11 +85,45 @@ module Kontena::Cli::Services
 
       it 'returns hash of port options' do
         valid_result = [{
+          ip: '0.0.0.0',
+          container_port: '80',
+          node_port: '80',
+          protocol: 'tcp'
+        }]
+        port_options = subject.parse_ports(['80:80'])
+        expect(port_options).to eq(valid_result)
+      end
+
+      it 'returns hash of port options with protocol' do
+        valid_result = [{
+          ip: '0.0.0.0',
+          container_port: '80',
+          node_port: '80',
+          protocol: 'udp'
+        }]
+        port_options = subject.parse_ports(['80:80/udp'])
+        expect(port_options).to eq(valid_result)
+      end
+
+      it 'returns hash of port options with ip' do
+        valid_result = [{
+            ip: '1.2.3.4',
             container_port: '80',
             node_port: '80',
             protocol: 'tcp'
         }]
-        port_options = subject.parse_ports(['80:80'])
+        port_options = subject.parse_ports(['1.2.3.4:80:80'])
+        expect(port_options).to eq(valid_result)
+      end
+
+      it 'returns hash of port options with ip and protocol' do
+        valid_result = [{
+            ip: '1.2.3.4',
+            container_port: '80',
+            node_port: '80',
+            protocol: 'udp'
+        }]
+        port_options = subject.parse_ports(['1.2.3.4:80:80/udp'])
         expect(port_options).to eq(valid_result)
       end
     end
@@ -128,6 +162,65 @@ module Kontena::Cli::Services
 
       it 'does not touch image name if tag is set' do
         expect(subject.parse_image('redis:3.0')).to eq('redis:3.0')
+      end
+    end
+
+    describe '#parse_memory' do
+      it 'parses kilobytes' do
+        expect(subject.parse_memory("1024k")).to eq(1 * 1024 * 1024)
+        expect(subject.parse_memory("1024K")).to eq(1 * 1024 * 1024)
+      end
+
+      it 'parses megabytes' do
+        expect(subject.parse_memory("32m")).to eq(32 * 1024 * 1024)
+        expect(subject.parse_memory("32M")).to eq(32 * 1024 * 1024)
+      end
+
+      it 'parses gigabytes' do
+        expect(subject.parse_memory("2g")).to eq(2 * 1024 * 1024 * 1024)
+        expect(subject.parse_memory("2G")).to eq(2 * 1024 * 1024 * 1024)
+      end
+
+      it 'parses plain bytes' do
+        expect(subject.parse_memory("#{12 * 1024 * 1024}")).to eq(12 * 1024 * 1024)
+      end
+
+      it 'raises error if invalid format' do
+        expect{subject.parse_memory("1.024g")}.to raise_error(ArgumentError)
+        expect{subject.parse_memory("1MG")}.to raise_error(ArgumentError)
+      end
+    end
+
+    describe '#parse_relative_time' do
+      it 'parses minutes' do
+        expect(subject.parse_relative_time("60min")).to eq(60 * 60)
+      end
+
+      it 'parses hours' do
+        expect(subject.parse_relative_time("8h")).to eq(8 * 60 * 60)
+      end
+
+      it 'parses days' do
+        expect(subject.parse_relative_time("7d")).to eq(7 * 24 * 60 * 60)
+      end
+
+      it 'parses seconds by default' do
+        expect(subject.parse_relative_time("600")).to eq(600)
+      end
+    end
+
+    describe '#parse_build_args' do
+      it'parses array args' do
+        expect(subject.parse_build_args(['foo=bar', 'baz=baf'])).to eq({'foo' => 'bar', 'baz' => 'baf'})
+      end
+
+      it'parses hash args' do
+        expect(subject.parse_build_args({'foo' => 'bar', 'baz' => 'baf'})).to eq({'foo' => 'bar', 'baz' => 'baf'})
+      end
+
+      it'parses hash args and replaces empty value from env' do
+        expect(ENV).to receive(:[]).with('baz').and_return('baf')
+        expect(subject.parse_build_args({'foo' => 'bar', 'baz' => nil})).to eq({'foo' => 'bar', 'baz' => 'baf'})
       end
     end
   end

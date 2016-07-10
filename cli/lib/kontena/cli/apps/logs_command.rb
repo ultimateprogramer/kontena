@@ -10,17 +10,15 @@ module Kontena::Cli::Apps
     option ['-p', '--project-name'], 'NAME', 'Specify an alternate project name (default: directory name)'
     option ["-l", "--lines"], "LINES", "How many lines to show", default: '100'
     option "--since", "SINCE", "Show logs since given timestamp"
-    option ["-s", "--search"], "SEARCH", "Search from logs"
     option ["-t", "--tail"], :flag, "Tail (follow) logs", default: false
     parameter "[SERVICE] ...", "Show only specified service logs"
 
-    attr_reader :services, :service_prefix
+    attr_reader :services
 
     def execute
       require_config_file(filename)
 
-      @service_prefix = project_name || current_dir
-      @services = load_services(filename, service_list, service_prefix)
+      @services = services_from_yaml(filename, service_list, service_prefix)
       if services.size > 0
         show_logs(services)
       elsif !service_list.empty?
@@ -36,7 +34,6 @@ module Kontena::Cli::Apps
         query_params << "from=#{last_id}" unless last_id.nil?
         query_params << "limit=#{lines}"
         query_params << "since=#{since}" if !since.nil? && last_id.nil?
-        query_params << "search=#{search}" if search
         logs = []
         services.each do |service_name, opts|
           service = get_service(token, prefixed_name(service_name)) rescue false

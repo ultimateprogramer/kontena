@@ -42,24 +42,27 @@ module Kontena
           else
             subnet = ec2.subnet(opts[:subnet])
           end
+          abort('Failed to find subnet!') unless subnet
           userdata_vars = {
               ssl_cert: ssl_cert,
               auth_server: opts[:auth_server],
               version: opts[:version],
               vault_secret: opts[:vault_secret],
-              vault_iv: opts[:vault_iv]
+              vault_iv: opts[:vault_iv],
+              mongodb_uri: opts[:mongodb_uri]
           }
 
-          security_group = ensure_security_group(opts[:vpc])
+          security_groups = opts[:security_groups] ? 
+              resolve_security_groups_to_ids(opts[:security_groups], opts[:vpc]) : 
+              ensure_security_group(opts[:vpc])
+
           name = generate_name
           ec2_instance = ec2.create_instances({
             image_id: ami,
             min_count: 1,
             max_count: 1,
             instance_type: opts[:type],
-            security_group_ids: [security_group.group_id],
             key_name: opts[:key_pair],
-            subnet_id: subnet.subnet_id,
             user_data: Base64.encode64(user_data(userdata_vars)),
             block_device_mappings: [
               {
@@ -70,44 +73,54 @@ module Kontena
                   volume_type: 'gp2'
                 }
               }
+            ],
+            network_interfaces: [
+             {
+               device_index: 0,
+               subnet_id: subnet.subnet_id,
+               groups: security_groups,
+               associate_public_ip_address: opts[:associate_public_ip],
+               delete_on_termination: true
+             }
             ]
           }).first
-          ec2_instance.create_tags({
-            tags: [
-              {key: 'Name', value: name}
-            ]
-          })
+
+          add_tags(opts[:tags], ec2_instance, name)
+          
           ShellSpinner "Creating AWS instance #{name.colorize(:cyan)} " do
             sleep 5 until ec2_instance.reload.state.name == 'running'
           end
-          master_url = "https://#{ec2_instance.public_ip_address}"
-          Excon.defaults[:ssl_verify_peer] = false
-          http_client = Excon.new(master_url, :connect_timeout => 10)
-          ShellSpinner "Waiting for #{name.colorize(:cyan)} to start" do
-            sleep 5 until master_running?(http_client)
+          public_ip = ec2_instance.reload.public_ip_address
+          if public_ip.nil?
+            master_url = "https://#{ec2_instance.private_ip_address}"
+            puts "Could not get public IP for the created master, private connect url is: #{master_url}"
+          else
+            master_url = "https://#{ec2_instance.public_ip_address}"
+            Excon.defaults[:ssl_verify_peer] = false
+            http_client = Excon.new(master_url, :connect_timeout => 10)
+            ShellSpinner "Waiting for #{name.colorize(:cyan)} to start " do
+              sleep 5 until master_running?(http_client)
+            end
           end
-
+          
           puts "Kontena Master is now running at #{master_url}"
-          puts "Use #{"kontena login #{master_url}".colorize(:light_black)} to complete Kontena Master setup"
+          puts "Use #{"kontena login --name=#{name.sub('kontena-master-', '')} #{master_url}".colorize(:light_black)} to complete Kontena Master setup"
         end
 
         ##
         # @param [String] vpc_id
-        # @return [Aws::EC2::SecurityGroup]
+        # @return [Array] Security group id in array
         def ensure_security_group(vpc_id)
           group_name = "kontena_master"
-          sg = ec2.security_groups({
-            filters: [
-              {name: 'group-name', values: [group_name]},
-              {name: 'vpc-id', values: [vpc_id]}
-            ]
-          }).first
-          unless sg
+          group_id = resolve_security_groups_to_ids(group_name, vpc_id)
+          
+          if group_id.empty?
             ShellSpinner "Creating AWS security group" do
               sg = create_security_group(group_name, vpc_id)
+              group_id = [sg.group_id]
             end
           end
-          sg
+          group_id
         end
 
         ##
@@ -151,7 +164,7 @@ module Kontena
         end
 
         def generate_name
-          "kontena-master-#{super}-#{rand(1..99)}"
+          "kontena-master-#{super}-#{rand(1..9)}"
         end
 
         def master_running?(http_client)
@@ -161,7 +174,7 @@ module Kontena
         end
 
         def erb(template, vars)
-          ERB.new(template).result(
+          ERB.new(template, nil, '%<>-').result(
             OpenStruct.new(vars).instance_eval { binding }
           )
         end

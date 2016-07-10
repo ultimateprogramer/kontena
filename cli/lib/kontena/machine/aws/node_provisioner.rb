@@ -31,9 +31,11 @@ module Kontena
 
           opts[:vpc] = default_vpc.vpc_id unless opts[:vpc]
 
-          security_group = ensure_security_group(opts[:grid], opts[:vpc])
+          security_groups = opts[:security_groups] ? 
+              resolve_security_groups_to_ids(opts[:security_groups], opts[:vpc]) : 
+              ensure_security_group(opts[:grid], opts[:vpc])
+              
           name = opts[:name ] || generate_name
-
 
           if opts[:subnet].nil?
             subnet = default_subnet(opts[:vpc], region+opts[:zone])
@@ -54,9 +56,7 @@ module Kontena
             min_count: 1,
             max_count: 1,
             instance_type: opts[:type],
-            security_group_ids: [security_group.group_id],
             key_name: opts[:key_pair],
-            subnet_id: subnet.subnet_id,
             user_data: Base64.encode64(user_data(userdata_vars)),
             block_device_mappings: [
               {
@@ -67,14 +67,20 @@ module Kontena
                   volume_type: 'gp2'
                 }
               }
+            ],
+            network_interfaces: [
+             {
+               device_index: 0,
+               subnet_id: subnet.subnet_id,
+               groups: security_groups,
+               associate_public_ip_address: opts[:associate_public_ip],
+               delete_on_termination: true
+             }
             ]
           }).first
-          ec2_instance.create_tags({
-            tags: [
-              {key: 'Name', value: name},
-              {key: 'kontena_grid', value: opts[:grid]}
-            ]
-          })
+
+          opts[:tags] << "kontena_grid=#{opts[:grid]}"
+          add_tags(opts[:tags], ec2_instance, name)
 
           ShellSpinner "Creating AWS instance #{name.colorize(:cyan)} " do
             sleep 5 until ec2_instance.reload.state.name == 'running'
@@ -83,27 +89,28 @@ module Kontena
           ShellSpinner "Waiting for node #{name.colorize(:cyan)} join to grid #{opts[:grid].colorize(:cyan)} " do
             sleep 2 until node = instance_exists_in_grid?(opts[:grid], name)
           end
-          labels = ["region=#{region}", "az=#{opts[:zone]}"]
+          labels = [
+            "region=#{region}",
+            "az=#{opts[:zone]}",
+            "provider=aws"
+          ]
           set_labels(node, labels)
         end
 
         ##
         # @param [String] grid
-        # @return [Aws::EC2::SecurityGroup]
+        # @return [Array] Security group id in array
         def ensure_security_group(grid, vpc_id)
           group_name = "kontena_grid_#{grid}"
-          sg = ec2.security_groups({
-            filters: [
-              {name: 'group-name', values: [group_name]},
-              {name: 'vpc-id', values: [vpc_id]}
-            ]
-          }).first
-          unless sg
+          group_id = resolve_security_groups_to_ids(group_name, vpc_id)
+
+          if group_id.empty?
             ShellSpinner "Creating AWS security group" do
               sg = create_security_group(group_name, vpc_id)
+              group_id = [sg.group_id]
             end
           end
-          sg
+          group_id
         end
 
         ##

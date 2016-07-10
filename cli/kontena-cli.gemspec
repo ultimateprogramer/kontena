@@ -22,10 +22,11 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "bundler", "~> 1.7"
   spec.add_development_dependency "rake", "~> 10.0"
-  spec.add_runtime_dependency 'excon'
-  spec.add_runtime_dependency 'colorize'
-  spec.add_runtime_dependency 'clamp'
-  spec.add_runtime_dependency 'highline'
-  spec.add_runtime_dependency 'shell-spinner'
-  spec.add_runtime_dependency 'ruby_dig'
+  spec.add_runtime_dependency "excon", "~> 0.49.0"
+  spec.add_runtime_dependency "colorize"
+  spec.add_runtime_dependency "clamp"
+  spec.add_runtime_dependency "highline"
+  spec.add_runtime_dependency "shell-spinner"
+  spec.add_runtime_dependency "ruby_dig"
+  spec.add_runtime_dependency "dry-validation", "~> 0.8"
 end

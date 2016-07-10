@@ -32,18 +32,22 @@ class GridService
 
   field :deploy_requested_at, type: DateTime
   field :deployed_at, type: DateTime
+  field :revision, type: Fixnum, default: 1
   field :strategy, type: String, default: 'ha'
 
   belongs_to :grid
   belongs_to :image
+  belongs_to :stack
   has_many :containers
   has_many :container_logs
   has_many :container_stats
   has_many :audit_logs
+  has_many :grid_service_deploys, dependent: :destroy
   embeds_many :grid_service_links
   embeds_many :hooks, class_name: 'GridServiceHook'
   embeds_many :secrets, class_name: 'GridServiceSecret'
   embeds_one :deploy_opts, class_name: 'GridServiceDeployOpt', autobuild: true
+  embeds_one :health_check, class_name: 'GridServiceHealthCheck'
 
   index({ grid_id: 1 })
   index({ name: 1 })
@@ -74,6 +78,15 @@ class GridService
     !stateful?
   end
 
+  def daemon?
+    self.strategy == 'daemon'
+  end
+
+  # @return [Boolean]
+  def initialized?
+    self.state == 'initialized'
+  end
+
   # @return [Boolean]
   def deploying?
     self.state == 'deploying'
@@ -85,14 +98,7 @@ class GridService
   end
 
   def deploy_pending?
-    self.state == 'deploy_pending'
-  end
-
-  # @return [Boolean]
-  def all_instances_exist?
-    self.containers.unscoped.where(
-      'container_type' => 'container', 'state.running' => true
-    ).count >= self.container_count
+    self.grid_service_deploys.where(started_at: nil).count > 0
   end
 
   # @return [Boolean]
@@ -198,5 +204,15 @@ class GridService
     return true if self.net.to_s.match(/^container:.+/)
 
     false
+  end
+
+  def health_status
+    healthy = 0
+
+    self.containers.each do |c|
+      healthy += 1 if c.health_status == 'healthy'
+    end
+
+    {healthy: healthy, total: self.containers.count}
   end
 end

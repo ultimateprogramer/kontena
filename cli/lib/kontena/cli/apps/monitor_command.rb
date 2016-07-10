@@ -11,13 +11,12 @@ module Kontena::Cli::Apps
 
     parameter "[SERVICE] ...", "Services to start"
 
-    attr_reader :services, :service_prefix
+    attr_reader :services
 
     def execute
       require_config_file(filename)
-
-      @service_prefix = project_name || current_dir
-      @services = load_services(filename, service_list, service_prefix)
+            
+      @services = services_from_yaml(filename, service_list, service_prefix)
       if services.size > 0
         show_monitor(services)
       elsif !service_list.empty?

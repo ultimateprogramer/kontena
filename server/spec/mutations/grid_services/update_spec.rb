@@ -22,6 +22,30 @@ describe GridServices::Update do
       }.to change{ redis_service.reload.env }.to(['FOO=bar'])
     end
 
+    it 'updates revision' do
+      redis_service.env = ['FOO=BAR', 'BAR=baz']
+      redis_service.save
+      expect {
+        described_class.new(
+            current_user: user,
+            grid_service: redis_service,
+            env: ['FOO=bar']
+        ).run
+      }.to change{ redis_service.reload.revision }.to(2)
+    end
+
+    it 'does not update revision when nothing changes' do
+      redis_service.env = ['FOO=bar']
+      redis_service.save
+      expect {
+        described_class.new(
+            current_user: user,
+            grid_service: redis_service,
+            env: ['FOO=bar']
+        ).run
+      }.not_to change{ redis_service.reload.revision }
+    end
+
     it 'updates affinity variables' do
       redis_service.affinity = ['az==a1', 'disk==ssd']
       redis_service.save
@@ -73,6 +97,50 @@ describe GridServices::Update do
       expect(hooks.size).to eq(1)
       expect(hooks[0].id).to eq(org_hook.id)
       expect(hooks[0].cmd).to eq('sleep 10')
+    end
+  end
+
+  describe '#build_grid_service_envs' do
+    let(:redis_service) do
+      GridService.create!(
+        grid: grid,
+        name: 'redis',
+        image_name: 'redis:2.8',
+        env: [
+          'FOO=bar',
+          'BAR=baz'
+        ]
+      )
+    end
+    let(:subject) do
+      described_class.new(
+        current_user: user,
+        grid_service: redis_service
+      )
+    end
+
+    it 'appends to env' do
+      env = redis_service.env.dup
+      env << 'TEST=test'
+      env = subject.build_grid_service_envs(env)
+      expect(env.size).to eq(3)
+      expect(env[2]).to eq('TEST=test')
+    end
+
+    it 'modifies env' do
+      env = redis_service.env.dup
+      env[1] = 'BAR=bazzz'
+      env = subject.build_grid_service_envs(env)
+      expect(env.size).to eq(2)
+      expect(env[1]).to eq('BAR=bazzz')
+    end
+
+    it 'does not modify env if value nil' do
+      env = redis_service.env.dup
+      env[1] = 'BAR='
+      env = subject.build_grid_service_envs(env)
+      expect(env.size).to eq(2)
+      expect(env[1]).to eq('BAR=baz')
     end
   end
 end

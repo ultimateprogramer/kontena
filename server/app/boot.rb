@@ -6,6 +6,7 @@ end
 
 ENV['RACK_ENV'] = 'development' unless ENV['RACK_ENV']
 
+require 'eventmachine'
 require 'celluloid'
 require 'roda'
 require 'mongoid'
@@ -14,6 +15,7 @@ require 'mutations'
 require 'logger'
 require 'msgpack'
 require 'tilt/jbuilder.rb'
+require 'mongoid/enum'
 
 Dir[__dir__ + '/initializers/*.rb'].each {|file| require file }
 

@@ -12,6 +12,8 @@ Kontena CLI may be used to provision new Kontena Nodes based on [CoreOS](https:/
 * [Amazon AWS](nodes#amazon-aws)
 * [Microsoft Azure](nodes#microsoft-azure)
 * [DigitalOcean](nodes#digitalocean)
+* [Packet](nodes#packet)
+* [Upcloud](nodes#upcloud)
 * [Vagrant (local environment)](nodes#vagrant)
 * [Docker Machine](nodes#docker-machine)
 * [Manual Install](nodes#manual-install)
@@ -38,6 +40,8 @@ Options:
     --type SIZE                   Instance type (default: "t2.small")
     --storage STORAGE             Storage size (GiB) (default: "30")
     --version VERSION             Define installed Kontena version (default: "latest")
+    --associate-public-ip-address Flag to associate public IP address in VPC that does not do it automatically
+    --security-groups             Comma separated list of security group names to which the new master will be attached
 ```
 
 ### Microsoft Azure
@@ -56,10 +60,25 @@ Options:
     --network NETWORK             Virtual Network name
     --subnet SUBNET               Subnet name
     --ssh-key SSH KEY             SSH private key file
-    --password PASSWORD           Password
     --location LOCATION           Location (default: "West Europe")
     --version VERSION             Define installed Kontena version (default: "latest")
 ```
+
+You can use OpenSSL to create your management certificate. You actually need to create two certificates, one for the server (a .cer file) and one for the client (a .pem file). To create the .pem file, execute this:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:1024 -keyout mycert.pem -out mycert.pem
+```
+
+To create the .cer certificate, execute this:
+
+```
+openssl x509 -inform pem -in mycert.pem -outform der -out mycert.cer
+```
+
+For more information about Azure certificates, see [Certificates Overview for Azure Cloud Services](https://azure.microsoft.com/en-us/documentation/articles/cloud-services-certs-create/). For a complete description of OpenSSL parameters, see the documentation at http://www.openssl.org/docs/apps/openssl.html.
+
+After you have created these files, you will need to upload the .cer file to Azure via the "Upload" action of the "Settings" tab of the [Azure classic portal](https://manage.windowsazure.com/), and you will need to make note of where you saved the .pem file.
 
 ### DigitalOcean
 
@@ -68,12 +87,52 @@ Usage:
     kontena node digitalocean create [OPTIONS]
 
 Options:
+    --grid GRID                   Specify grid to use
     --name NAME                   Node name
     --token TOKEN                 DigitalOcean API token
     --ssh-key SSH_KEY             Path to ssh public key
     --size SIZE                   Droplet size (default: "1gb")
     --region REGION               Region (default: "ams2")
     --version VERSION             Define installed Kontena version (default: latest)
+```
+
+### Packet
+
+```
+Usage:
+    kontena node packet create [OPTIONS]
+
+Parameters:
+    [NAME]                        Node name
+
+Options:
+    --grid GRID                   Specify grid to use
+    --token TOKEN                 Packet API token
+    --project PROJECT ID          Packet project id
+    --type TYPE                   Server type (baremetal_0, baremetal_1, ..) (default: "baremetal_0")
+    --facility FACILITY CODE      Facility (default: "ams1")
+    --billing BILLING             Billing cycle (default: "hourly")
+    --ssh-key PATH                Path to ssh public key (optional)
+    --version VERSION             Define installed Kontena version (default: "latest")
+```
+
+### Upcloud
+
+```
+Usage:
+    kontena node upcloud create [OPTIONS] [NAME]
+
+    [NAME]                        Node name
+
+    --grid GRID                   Specify grid to use
+    --username USER               Upcloud username
+    --password PASS               Upcloud password
+    --ssh-key SSH_KEY             Path to ssh public key
+    --plan PLAN                   Server size (default: "1xCPU-1GB")
+    --zone ZONE                   Zone (default: "fi-hel1")
+    --version VERSION             Define installed Kontena version (default: "latest")
+
+Note: The username for ssh access is "root"
 ```
 
 ### Vagrant

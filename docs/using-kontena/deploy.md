@@ -9,7 +9,7 @@ Kontena can use different scheduling algorithms when deploying services to more 
 
 ### High Availability (HA)
 
-Service with `ha` strategy will deploy its instances to different host nodes. This means that the service instances will be spread across all nodes.
+Service with `ha` strategy will deploy its instances to different host nodes. This means that the service instances will be spread across all availability zones/nodes. Availability zones are resolved from node labels, for example `az=a1` means that node belongs to availability zone `a1`.
 
 ```
 deploy:
@@ -58,6 +58,14 @@ deploy:
 
 The default `min_health` is 1.0, which means no instances can be deployed in parallel (deploy will progress one-by-one). A value of 0.5 means that during a deploy half of the instances can be deployed in parallel.
 
+### Interval
+
+Deploy interval of service. Service will be automatically scheduled for deploy after this time unless it has been scheduled by other events. This can be used as an "erosion-resistance" mechanism.
+
+```
+deploy:
+  interval: 8h
+```
 
 ## Scheduling Conditions
 

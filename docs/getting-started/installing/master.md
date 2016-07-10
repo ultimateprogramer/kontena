@@ -12,6 +12,8 @@ Kontena CLI may be used to provision Kontena Master based on [CoreOS](https://co
 * [Amazon AWS](master#amazon-aws)
 * [Microsoft Azure](master#microsoft-azure)
 * [DigitalOcean](master#digitalocean)
+* [Packet](master#packet)
+* [Upcloud](master#upcloud)
 * [Vagrant (local environment)](master#vagrant)
 * [Manual Install](master#manual-install)
   * [CoreOS](master#coreos)
@@ -40,6 +42,8 @@ Options:
     --vault-iv VAULT_IV           Initialization vector for Vault (default: generate random iv)
     --version VERSION             Define installed Kontena version (default: "latest")
     --auth-provider-url AUTH_PROVIDER_URL Define authentication provider url (optional)
+    --associate-public-ip-address Flag to associate public IP address in VPC that does not do it automatically 
+    --security-groups             Comma separated list of security group names to which the new master will be attached
 ```
 
 ### Microsoft Azure
@@ -55,7 +59,6 @@ Options:
     --network NETWORK             Virtual Network name
     --subnet SUBNET               Subnet name
     --ssh-key SSH KEY             SSH private key file
-    --password PASSWORD           Password
     --location LOCATION           Location (default: "West Europe")
     --ssl-cert SSL CERT           SSL certificate file
     --auth-provider-url AUTH_PROVIDER_URL Define authentication provider url
@@ -63,6 +66,22 @@ Options:
     --vault-iv VAULT_IV           Initialization vector for Vault
     --version VERSION             Define installed Kontena version (default: "latest")
 ```
+
+You can use OpenSSL to create your management certificate. You actually need to create two certificates, one for the server (a .cer file) and one for the client (a .pem file). To create the .pem file, execute this:
+
+```
+openssl req -x509 -nodes -days 365 -newkey rsa:1024 -keyout mycert.pem -out mycert.pem
+```
+
+To create the .cer certificate, execute this:
+
+```
+openssl x509 -inform pem -in mycert.pem -outform der -out mycert.cer
+```
+
+For more information about Azure certificates, see [Certificates Overview for Azure Cloud Services](https://azure.microsoft.com/en-us/documentation/articles/cloud-services-certs-create/). For a complete description of OpenSSL parameters, see the documentation at http://www.openssl.org/docs/apps/openssl.html.
+
+After you have created these files, you will need to upload the .cer file to Azure via the "Upload" action of the "Settings" tab of the [Azure classic portal](https://manage.windowsazure.com/), and you will need to make note of where you saved the .pem file.
 
 ### DigitalOcean
 
@@ -80,6 +99,49 @@ Options:
     --vault-iv VAULT_IV           Initialization vector for Vault
     --version VERSION             Define installed Kontena version (default: "latest")
     --auth-provider-url AUTH_PROVIDER_URL Define authentication provider url
+```
+
+### Packet
+
+```
+Usage:
+    kontena master packet create [OPTIONS]
+
+Options:
+    --token TOKEN                 Packet API token
+    --project PROJECT ID          Packet project id
+    --ssl-cert PATH               SSL certificate file (optional)
+    --type TYPE                   Server type (baremetal_0, baremetal_1, ..) (default: "baremetal_0")
+    --facility FACILITY CODE      Facility (default: "ams1")
+    --billing BILLING             Billing cycle (default: "hourly")
+    --ssh-key PATH                Path to ssh public key (optional)
+    --vault-secret VAULT_SECRET   Secret key for Vault (optional)
+    --vault-iv VAULT_IV           Initialization vector for Vault (optional)
+    --mongodb-uri URI             External MongoDB uri (optional)
+    --version VERSION             Define installed Kontena version (default: "latest")
+    --auth-provider-url AUTH_PROVIDER_URL Define authentication provider url
+```
+
+### Upcloud
+
+```
+Usage:
+    kontena master upcloud create [OPTIONS]
+
+Options:
+    --username USER               Upcloud username
+    --password PASS               Upcloud password
+    --ssh-key SSH_KEY             Path to ssh public key
+    --ssl-cert SSL CERT           SSL certificate file (optional)
+    --plan PLAN                   Server plan (default: "1xCPU-1GB")
+    --zone ZONE                   Zone (default: "fi-hel1")
+    --vault-secret VAULT_SECRET   Secret key for Vault (optional)
+    --vault-iv VAULT_IV           Initialization vector for Vault (optional)
+    --mongodb-uri URI             External MongoDB uri (optional)
+    --version VERSION             Define installed Kontena version (default: "latest")
+    --auth-provider-url AUTH_PROVIDER_URL Define authentication provider url
+
+Note: The username for ssh access is "root"
 ```
 
 ### Vagrant

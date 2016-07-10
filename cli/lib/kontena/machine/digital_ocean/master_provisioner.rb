@@ -8,6 +8,7 @@ module Kontena
     module DigitalOcean
       class MasterProvisioner
         include RandomName
+        include Machine::CertHelper
 
         attr_reader :client, :http_client
 
@@ -25,6 +26,10 @@ module Kontena
           if opts[:ssl_cert]
             abort('Invalid ssl cert') unless File.exists?(File.expand_path(opts[:ssl_cert]))
             ssl_cert = File.read(File.expand_path(opts[:ssl_cert]))
+          else
+            ShellSpinner "Generating self-signed SSL certificate" do
+              ssl_cert = generate_self_signed_cert
+            end
           end
 
           userdata_vars = {
@@ -32,7 +37,8 @@ module Kontena
               auth_server: opts[:auth_server],
               version: opts[:version],
               vault_secret: opts[:vault_secret],
-              vault_iv: opts[:vault_iv]
+              vault_iv: opts[:vault_iv],
+              mongodb_uri: opts[:mongodb_uri]
           }
 
           droplet = DropletKit::Droplet.new(
@@ -52,11 +58,8 @@ module Kontena
               sleep 5
             end
           end
-          if opts[:ssl_cert]
-            master_url = "https://#{droplet.public_ip}"
-          else
-            master_url = "http://#{droplet.public_ip}"
-          end
+
+          master_url = "https://#{droplet.public_ip}"
           Excon.defaults[:ssl_verify_peer] = false
           @http_client = Excon.new("#{master_url}", :connect_timeout => 10)
 
@@ -65,7 +68,7 @@ module Kontena
           end
 
           puts "Kontena Master is now running at #{master_url}"
-          puts "Use #{"kontena login #{master_url}".colorize(:light_black)} to complete Kontena Master setup"
+          puts "Use #{"kontena login --name=#{droplet.name.sub('kontena-master-', '')} #{master_url}".colorize(:light_black)} to complete Kontena Master setup"
         end
 
         def user_data(vars)
@@ -74,7 +77,7 @@ module Kontena
         end
 
         def generate_name
-          "kontena-master-#{super}-#{rand(1..99)}"
+          "kontena-master-#{super}-#{rand(1..9)}"
         end
 
         def ssh_key(public_key)
@@ -88,7 +91,7 @@ module Kontena
         end
 
         def erb(template, vars)
-          ERB.new(template).result(OpenStruct.new(vars).instance_eval { binding })
+          ERB.new(template, nil, '%<>-').result(OpenStruct.new(vars).instance_eval { binding })
         end
       end
     end

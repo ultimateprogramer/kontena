@@ -1,5 +1,8 @@
 require 'yaml'
 require_relative '../services/services_helper'
+require_relative './service_generator'
+require_relative './service_generator_v2'
+require_relative './yaml/reader'
 
 module Kontena::Cli::Apps
   module Common
@@ -13,11 +16,54 @@ module Kontena::Cli::Apps
     # @param [Array<String>] service_list
     # @param [String] prefix
     # @return [Hash]
-    def load_services(filename, service_list, prefix)
-      services = parse_services(filename, nil, prefix)
-      services.delete_if { |name, service| !service_list.include?(name)} unless service_list.empty?
+    def services_from_yaml(filename, service_list, prefix)
+      set_env_variables(prefix, current_grid)
+      reader = YAML::Reader.new(filename)
+      outcome = reader.execute
+      hint_on_validation_notifications(outcome[:notifications]) if outcome[:notifications].size > 0
+      abort_on_validation_errors(outcome[:errors]) if outcome[:errors].size > 0
+      kontena_services = generate_services(outcome[:services], outcome[:version])
+      kontena_services.delete_if { |name, service| !service_list.include?(name)} unless service_list.empty?
+      kontena_services
+    end
+
+    ##
+    # @param [Hash] yaml
+    # @param [String] version
+    # @return [Hash]
+    def generate_services(yaml_services, version)
+      services = {}
+      if version == '2'
+        generator_klass = ServiceGeneratorV2
+      else
+        generator_klass = ServiceGenerator
+      end
+      yaml_services.each do |service_name, config|
+        abort("Image is missing for #{service_name}. Aborting.") unless config['image']
+        services[service_name] = generator_klass.new(config).generate
+      end
       services
     end
+
+    def set_env_variables(project, grid)
+      ENV['project'] = project
+      ENV['grid'] = grid
+    end
+
+    def service_prefix
+      @service_prefix ||= project_name || project_name_from_yaml(filename) || current_dir
+    end
+
+    def project_name_from_yaml(file)
+      reader = YAML::Reader.new(file, true)
+      outcome = reader.execute
+      if outcome[:version] == '2'
+        outcome[:name]
+      else
+        nil
+      end
+    end
+
 
     # @return [String]
     def token
@@ -28,7 +74,6 @@ module Kontena::Cli::Apps
     # @return [String]
     def prefixed_name(name)
       return name if service_prefix.strip == ""
-
       "#{service_prefix}-#{name}"
     end
 
@@ -43,62 +88,6 @@ module Kontena::Cli::Apps
       get_service(token, prefixed_name(name)) rescue false
     end
 
-    # @param [String] file
-    # @param [String,NilClass] name
-    # @param [String] prefix
-    # @return [Hash]
-    def parse_services(file, name = nil, prefix = '')
-      services = YAML.load(File.read(File.expand_path(file)) % {project: prefix, grid: current_grid})
-      Dir.chdir(File.dirname(File.expand_path(file))) do
-        services.each do |name, options|
-          normalize_env_vars(options)
-          if options.has_key?('extends')
-            extension_file = options['extends']['file']
-            service_name =  options['extends']['service']
-            options.delete('extends')
-            services[name] = extend_options(options, extension_file , service_name, prefix)
-          end
-        end
-      end
-      if name.nil?
-        services
-      else
-        abort("Service #{name} not found in #{file}") unless services.has_key?(name)
-        services[name]
-      end
-    end
-
-    # @param [Hash] options
-    # @param [String] file
-    # @param [String] service_name
-    # @param [String] prefix
-    # @return [Hash]
-    def extend_options(options, file, service_name, prefix)
-      parent_options = parse_services(file, service_name, prefix)
-      options['environment'] = extend_env_vars(parent_options, options)
-      parent_options.merge(options)
-    end
-
-    # @param [Hash] options
-    def normalize_env_vars(options)
-      if options['environment'].is_a?(Hash)
-        options['environment'] = options['environment'].map{|k, v| "#{k}=#{v}"}
-      end
-    end
-
-    # @param [Hash] from
-    # @param [Hash] to
-    # @return [Array]
-    def extend_env_vars(from, to)
-      env_vars = to['environment'] || []
-      if from['environment']
-        from['environment'].each do |env|
-          env_vars << env unless to['environment'] && to['environment'].find {|key| key.split('=').first == env.split('=').first}
-        end
-      end
-      env_vars
-    end
-
     # @param [Hash] services
     # @param [String] file
     def create_yml(services, file = 'kontena.yml')
@@ -111,10 +100,39 @@ module Kontena::Cli::Apps
     def app_json
       if !@app_json && File.exist?('app.json')
         @app_json = JSON.parse(File.read('app.json'))
-      else
-        @app_json = {}
       end
-      @app_json
+      @app_json ||= {}
+    end
+
+    def display_notifications(messages, color = :yellow)
+      messages.each do |files|
+        files.each do |file, services|
+          STDERR.puts "#{file}:".colorize(color)
+          services.each do |service|
+            service.each do |name, errors|
+              STDERR.puts "  #{name}:".colorize(color)
+              if errors.is_a?(String)
+                STDERR.puts "    - #{errors}".colorize(color)
+              else
+                errors.each do |key, error|
+                  STDERR.puts "    - #{key}: #{error.to_json}".colorize(color)
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    def hint_on_validation_notifications(errors)
+      STDERR.puts "YAML contains the following unsupported options and they were rejected:".colorize(:yellow)
+      display_notifications(errors)
+    end
+
+    def abort_on_validation_errors(errors)
+      STDERR.puts "YAML validation failed! Aborting.".colorize(:red)
+      display_notifications(errors, :red)
+      abort
     end
 
     def valid_addons(prefix=nil)

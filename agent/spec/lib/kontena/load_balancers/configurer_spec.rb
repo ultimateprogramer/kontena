@@ -74,10 +74,31 @@ describe Kontena::LoadBalancers::Configurer do
       subject.ensure_config(container)
     end
 
+    it 'sets keep_virtual_path' do
+      container.env_hash['KONTENA_LB_KEEP_VIRTUAL_PATH'] = 'true'
+      expect(etcd).to receive(:set).
+        with("#{etcd_prefix}/lb/services/test-api/keep_virtual_path", {value: 'true'})
+      subject.ensure_config(container)
+    end
+
     it 'sets custom virtual_hosts' do
       container.env_hash['KONTENA_LB_VIRTUAL_HOSTS'] = 'www.domain.com'
       expect(etcd).to receive(:set).
         with("#{etcd_prefix}/lb/services/test-api/virtual_hosts", {value: 'www.domain.com'})
+      subject.ensure_config(container)
+    end
+
+    it 'sets http check uri' do
+      container.labels['io.kontena.health_check.uri'] = '/health'
+      expect(etcd).to receive(:set).
+        with("#{etcd_prefix}/lb/services/test-api/health_check_uri", {value: '/health'})
+      subject.ensure_config(container)
+    end
+
+    it 'removes http check uri' do
+      container.labels.delete('io.kontena.health_check.uri')
+      expect(etcd).to receive(:delete).
+        with("#{etcd_prefix}/lb/services/test-api/health_check_uri")
       subject.ensure_config(container)
     end
 

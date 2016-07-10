@@ -50,8 +50,13 @@ module Kontena
           puts "  scaling: #{service['container_count'] }"
           puts "  strategy: #{service['strategy']}"
           puts "  deploy_opts:"
-          puts "    wait_for_port: #{service['deploy_opts']['wait_for_port'] || '-'}"
           puts "    min_health: #{service['deploy_opts']['min_health']}"
+          if service['deploy_opts']['wait_for_port']
+            puts "    wait_for_port: #{service['deploy_opts']['wait_for_port']}"
+          end
+          if service['deploy_opts']['interval']
+            puts "    interval: #{service['deploy_opts']['interval']}"
+          end
           puts "  dns: #{service['name']}.#{grid}.kontena.local"
 
           if service['affinity'].to_a.size > 0
@@ -165,6 +170,22 @@ module Kontena
             puts "  pid: #{service['pid']}"
           end
 
+          if service['health_check']
+            puts "  health check:"
+            puts "    protocol: #{service['health_check']['protocol']}"
+            puts "    uri: #{service['health_check']['uri']}" if service['health_check']['protocol'] == 'http'
+            puts "    port: #{service['health_check']['port']}"
+            puts "    timeout: #{service['health_check']['timeout']}"
+            puts "    interval: #{service['health_check']['interval']}"
+            puts "    initial_delay: #{service['health_check']['initial_delay']}"
+          end
+          
+          if service['health_status']
+            puts "  health status:"
+            puts "    healthy: #{service['health_status']['healthy']}"
+            puts "    total: #{service['health_status']['total']}"
+          end
+
           puts "  instances:"
           result = client(token).get("services/#{parse_service_id(service_id)}/containers")
           result['containers'].each do |container|
@@ -197,6 +218,7 @@ module Kontena
         # @param [String] name
         def wait_for_deploy_to_finish(token, name)
           ShellSpinner " " do
+            sleep 1 # wait for master to process deploy request and change state to 'deploying'
             until client(token).get("services/#{name}")['state'] != 'deploying' do
               sleep 1
             end
@@ -245,14 +267,20 @@ module Kontena
         # @return [Array<Hash>]
         def parse_ports(port_options)
           port_options.map{|p|
-            node_port, container_port, protocol = p.split(':')
+            port, protocol = p.split('/')
+            protocol ||= 'tcp'
+            port_elements = port.split(':')
+            container_port = port_elements[-1]
+            node_port = port_elements[-2]
+            ip = port_elements[-3] || '0.0.0.0'
             if node_port.nil? || container_port.nil?
               raise ArgumentError.new("Invalid port value #{p}")
             end
             {
-                container_port: container_port,
-                node_port: node_port,
-                protocol: protocol || 'tcp'
+              ip: ip,
+              container_port: container_port,
+              node_port: node_port,
+              protocol: protocol 
             }
           }
         end
@@ -276,14 +304,17 @@ module Kontena
         # @param [String] memory
         # @return [Integer]
         def parse_memory(memory)
-          if memory.end_with?('k')
-            memory.to_i * 1000
-          elsif memory.end_with?('m')
-            memory.to_i * 1000000
-          elsif memory.end_with?('g')
-            memory.to_i * 1000000000
-          else
+          case memory
+          when /^\d+(k|K)$/
+            memory.to_i * 1024
+          when /^\d+(m|M)$/
+            memory.to_i * 1024 * 1024
+          when /^\d+(g|G)$/
+            memory.to_i * 1024 * 1024 * 1024
+          when /^\d+$/
             memory.to_i
+          else
+            raise ArgumentError.new("Invalid memory value: #{memory}")
           end
         end
 
@@ -319,6 +350,25 @@ module Kontena
           secrets
         end
 
+        # @param [String] time
+        # @return [Integer, NilClass]
+        def parse_relative_time(time)
+          if time.end_with?('min')
+            time.to_i * 60
+          elsif time.end_with?('h')
+            time.to_i * 60 * 60
+          elsif time.end_with?('d')
+            time.to_i * 60 * 60 * 24
+          else
+            time = time.to_i
+            if time == 0
+              nil
+            else
+              time
+            end
+          end
+        end
+
         def int_to_filesize(int)
           {
             'B'  => 1000,
@@ -327,6 +377,25 @@ module Kontena
             'GB' => 1000 * 1000 * 1000 * 1000,
             'TB' => 1000 * 1000 * 1000 * 1000 * 1000
           }.each_pair { |e, s| return "#{(int.to_i / (s / 1000))}#{e}" if int < s }
+        end
+
+        def parse_build_args(args)
+          build_args = {}
+          if args.kind_of?(Array)
+            args.each do |arg|
+              key, val = arg.split('=')
+              build_args[key] = val
+            end
+          elsif args.kind_of?(Hash)
+            build_args = build_args.merge(args)
+            build_args.each do |k, v|
+              if v.nil?
+                build_args[k] = ENV[k.to_s] # follow docker compose functionality here
+              end
+            end
+          end
+
+          build_args
         end
       end
     end

@@ -1,7 +1,8 @@
 require 'net/http'
+require 'vmstat'
+
 require_relative '../helpers/node_helper'
 require_relative '../helpers/iface_helper'
-require 'vmstat'
 
 module Kontena::Workers
   class NodeInfoWorker
@@ -60,6 +61,7 @@ module Kontena::Workers
       info 'publishing node information'
       docker_info['PublicIp'] = self.public_ip
       docker_info['PrivateIp'] = self.private_ip
+      docker_info['AgentVersion'] = Kontena::Agent::VERSION
       event = {
           event: 'node:info',
           data: docker_info
@@ -72,7 +74,11 @@ module Kontena::Workers
     ##
     # @return [String, NilClass]
     def public_ip
-      Net::HTTP.get('whatismyip.akamai.com', '/')
+      if ENV['KONTENA_PUBLIC_IP'].to_s != ''
+        ENV['KONTENA_PUBLIC_IP'].to_s.strip
+      else
+        Net::HTTP.get('whatismyip.akamai.com', '/')
+      end
     rescue => exc
       error "Cannot resolve public ip: #{exc.message}"
       nil
@@ -80,11 +86,11 @@ module Kontena::Workers
 
     # @return [String]
     def private_ip
-      ip = interface_ip(private_interface)
-      unless ip
-        ip = interface_ip('eth0')
+      if ENV['KONTENA_PRIVATE_IP'].to_s != ''
+        ENV['KONTENA_PRIVATE_IP'].to_s.strip
+      else
+        interface_ip(private_interface) || interface_ip('eth0')
       end
-      ip
     end
 
     # @return [String]
